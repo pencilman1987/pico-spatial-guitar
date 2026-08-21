@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.haisnap.spatialguitar.ui.home.GuitarHomeUiState
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import com.pico.spatial.ui.design.ChipsDefaults
+import com.pico.spatial.ui.design.ButtonChip
 import com.pico.spatial.ui.design.PicoTheme
 import com.pico.spatial.ui.design.Text
 import com.pico.spatial.ui.design.ToggleableChip
@@ -25,6 +26,8 @@ import com.pico.spatial.ui.platform.Material
 fun GuitarStatusPanel(
     state: GuitarHomeUiState,
     onTimbreSelected: (GuitarTimbre) -> Unit,
+    onMoveModeChanged: (Boolean) -> Unit,
+    onCenterRequested: () -> Unit,
 ) {
     Column(
         modifier =
@@ -50,13 +53,31 @@ fun GuitarStatusPanel(
                     chipSize = ChipsDefaults.Small,
                 )
             }
+            ToggleableChip(
+                label = { Text(if (state.isMoveMode) "移动中" else "移动") },
+                isToggleOn = state.isMoveMode,
+                onClick = { onMoveModeChanged(!state.isMoveMode) },
+                chipSize = ChipsDefaults.Small,
+            )
+            ButtonChip(
+                label = { Text("居中") },
+                onClick = onCenterRequested,
+                chipSize = ChipsDefaults.Small,
+            )
         }
-        Text(text = state.activeNote?.name ?: "READY", style = PicoTheme.typography.titleLarge)
+        Text(
+            text = if (state.isMoveMode) "MOVE" else state.activeNote?.name ?: "READY",
+            style = PicoTheme.typography.titleLarge,
+        )
         Text(
             text =
-                state.activeNote?.let {
-                    "第 ${it.target.stringIndex + 1} 弦  ·  第 ${it.target.fret} 品  ·  ${(state.velocity * 100).toInt()}%"
-                } ?: "${state.timbre.technicalName} · 横跨琴弦扫弦",
+                if (state.isMoveMode) {
+                    "拖动琴身调整位置 · 完成后关闭移动"
+                } else {
+                    state.activeNote?.let {
+                        "第 ${it.target.stringIndex + 1} 弦  ·  第 ${it.target.fret} 品  ·  ${(state.velocity * 100).toInt()}%"
+                    } ?: "${state.timbre.technicalName} · 横跨琴弦扫弦"
+                },
             style = PicoTheme.typography.bodyMedium,
         )
     }

@@ -19,6 +19,7 @@ class GuitarHomeViewModelTest {
         assertEquals("准备就绪", state.status)
         assertNull(state.activeNote)
         assertEquals(GuitarTimbre.NYLON, state.timbre)
+        assertEquals(false, state.isMoveMode)
     }
 
     @Test
@@ -73,5 +74,18 @@ class GuitarHomeViewModelTest {
         assertEquals(GuitarTimbre.STEEL, viewModel.state.value.timbre)
         assertEquals("G4", viewModel.state.value.activeNote?.name)
         assertEquals("音色 B · 钢弦", viewModel.state.value.status)
+    }
+
+    @Test
+    fun moveModeCanBeEnabledWithoutResettingTheActiveNote() {
+        val viewModel = viewModel()
+        val note = viewModel.noteFor(FretTarget(0, 3))
+        viewModel.onEvent(GuitarHomeEvent.Played(note, 0.7f))
+
+        viewModel.onEvent(GuitarHomeEvent.MoveModeChanged(true))
+
+        assertEquals(true, viewModel.state.value.isMoveMode)
+        assertEquals("G4", viewModel.state.value.activeNote?.name)
+        assertEquals("移动模式 · 拖动琴身", viewModel.state.value.status)
     }
 }

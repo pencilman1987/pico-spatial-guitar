@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haisnap.spatialguitar.audio.GuitarAudioEngine
@@ -30,7 +31,10 @@ import com.pico.spatial.ui.foundation.content.SpatialView
 import com.pico.spatial.ui.foundation.gesture.SpatialPointerInfo
 import com.pico.spatial.ui.foundation.gesture.TargetEntity
 import com.pico.spatial.ui.foundation.gesture.detectSpatialPointerEvent
+import com.pico.spatial.ui.foundation.gesture.detectSpatialDragGesture
 import com.pico.spatial.ui.foundation.gesture.data.InteractionKind
+import com.pico.spatial.ui.platform.LengthUnit
+import com.pico.spatial.ui.platform.LocalPhysicalLengthConverter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -72,8 +76,17 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
         remember(viewModel) {
             { timbre: GuitarTimbre -> viewModel.onEvent(GuitarHomeEvent.TimbreSelected(timbre)) }
         }
+    val onMoveModeChanged =
+        remember(viewModel) {
+            { enabled: Boolean -> viewModel.onEvent(GuitarHomeEvent.MoveModeChanged(enabled)) }
+        }
 
-    GuitarHomeContent(state = state, onPlay = onPlay, onTimbreSelected = onTimbreSelected)
+    GuitarHomeContent(
+        state = state,
+        onPlay = onPlay,
+        onTimbreSelected = onTimbreSelected,
+        onMoveModeChanged = onMoveModeChanged,
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -82,66 +95,134 @@ internal fun GuitarHomeContent(
     state: GuitarHomeUiState,
     onPlay: (FretTarget, Float, Long) -> Unit,
     onTimbreSelected: (GuitarTimbre) -> Unit,
+    onMoveModeChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    var runtime by remember { mutableStateOf<GuitarRuntime?>(null) }
+    val density = LocalDensity.current
+    val physicalLengthConverter = LocalPhysicalLengthConverter.current
+    var sceneHandles by remember { mutableStateOf<GuitarSceneHandles?>(null) }
+    var placement by remember { mutableStateOf(GuitarPlacement.Centered) }
     val currentOnPlay by rememberUpdatedState(onPlay)
+    val pixelsToMeters =
+        remember(density, physicalLengthConverter) {
+            { pixels: Float ->
+                val dp = with(density) { pixels.toDp() }
+                physicalLengthConverter.dpToLength(dp, LengthUnit.Meters)
+            }
+        }
 
     DisposableEffect(Unit) {
         onDispose {
-            runtime?.close()
-            runtime = null
+            sceneHandles?.runtime?.close()
+            sceneHandles = null
         }
     }
 
     SpatialView(
         modifier =
-            Modifier.fillMaxSize().pointerInput(Unit) {
-                detectSpatialPointerEvent(
-                    context = context,
-                    targetedToEntity = TargetEntity.any { it.getName().startsWith("guitar_s") },
-                    onEvent =
-                        guitarPointerHandler { entity, velocity, inputUptimeMillis ->
-                            runtime?.strike(entity, velocity, inputUptimeMillis)
-                        },
-                )
+            Modifier.fillMaxSize().pointerInput(state.isMoveMode, pixelsToMeters) {
+                if (state.isMoveMode) {
+                    detectSpatialDragGesture(
+                        context = context,
+                        targetedToEntity = TargetEntity.any(::isGuitarMoveTarget),
+                    ) { drag ->
+                        // Drag is in view pixels (+Y down); ECS is meters (+Y up).
+                        placement =
+                            placement.movedBy(
+                                deltaXMeters = pixelsToMeters(drag.dragAmount.x),
+                                deltaYMeters = -pixelsToMeters(drag.dragAmount.y),
+                                deltaZMeters = pixelsToMeters(drag.dragAmount.z),
+                            )
+                        sceneHandles?.setPlacement(placement)
+                        Log.d(
+                            PLACEMENT_LOG_TAG,
+                            "x_m=${placement.xMeters} y_m=${placement.yMeters} z_m=${placement.zMeters}",
+                        )
+                    }
+                } else {
+                    detectSpatialPointerEvent(
+                        context = context,
+                        targetedToEntity = TargetEntity.any { it.getName().startsWith("guitar_s") },
+                        onEvent =
+                            guitarPointerHandler { entity, velocity, inputUptimeMillis ->
+                                sceneHandles?.runtime?.strike(entity, velocity, inputUptimeMillis)
+                            },
+                    )
+                }
             },
         initial = { content, attachments ->
-            runtime =
+            val guitar =
                 GuitarRuntime(
                     rootPosition = Vector3(0f, GuitarSpatialLayout.ROOT_Y, 0f),
                     onPlayed = { target, velocity, inputUptimeMillis ->
                         currentOnPlay(target, velocity, inputUptimeMillis)
                     },
-                ).also { guitar ->
-                    attachments.entity("guitar_art")?.let { artwork ->
-                        artwork.components[TransformComponent::class.java]?.setPosition(
-                            Vector3(0f, GuitarSpatialLayout.ROOT_Y, GuitarSpatialLayout.ARTWORK_Z)
-                        )
-                        content.addEntity(artwork)
-                    }
-                    content.addEntity(guitar.root)
-                    attachments.entity("guitar_status")?.let { statusPanel ->
-                        statusPanel.components[TransformComponent::class.java]?.setPosition(
-                            Vector3(
-                                GuitarSpatialLayout.STATUS_X,
-                                GuitarSpatialLayout.STATUS_Y,
-                                GuitarSpatialLayout.STATUS_Z,
-                            )
-                        )
-                        content.addEntity(statusPanel)
-                    }
-                }
+                )
+            val artwork = attachments.entity("guitar_art")?.also {
+                it.setName(ARTWORK_ENTITY_NAME)
+                content.addEntity(it)
+            }
+            content.addEntity(guitar.root)
+            val statusPanel = attachments.entity("guitar_status")?.also(content::addEntity)
+            sceneHandles = GuitarSceneHandles(guitar, artwork, statusPanel).also {
+                it.setPlacement(placement)
+            }
         },
         attachments = {
             AttachmentPanel(id = "guitar_art") {
                 GuitarArtwork()
             }
             AttachmentPanel(id = "guitar_status") {
-                GuitarStatusPanel(state = state, onTimbreSelected = onTimbreSelected)
+                GuitarStatusPanel(
+                    state = state,
+                    onTimbreSelected = onTimbreSelected,
+                    onMoveModeChanged = onMoveModeChanged,
+                    onCenterRequested = {
+                        placement = GuitarPlacement.Centered
+                        sceneHandles?.setPlacement(placement)
+                        Log.d(PLACEMENT_LOG_TAG, "centered")
+                    },
+                )
             }
         },
     )
+}
+
+private class GuitarSceneHandles(
+    val runtime: GuitarRuntime,
+    private val artwork: Entity?,
+    private val statusPanel: Entity?,
+) {
+    fun setPlacement(placement: GuitarPlacement) {
+        runtime.setPosition(
+            Vector3(
+                placement.xMeters,
+                GuitarSpatialLayout.ROOT_Y + placement.yMeters,
+                placement.zMeters,
+            )
+        )
+        artwork?.components?.get(TransformComponent::class.java)?.setPosition(
+            Vector3(
+                placement.xMeters,
+                GuitarSpatialLayout.ROOT_Y + placement.yMeters,
+                GuitarSpatialLayout.ARTWORK_Z + placement.zMeters,
+            )
+        )
+        statusPanel?.components?.get(TransformComponent::class.java)?.setPosition(
+            Vector3(
+                GuitarSpatialLayout.STATUS_X + placement.xMeters,
+                GuitarSpatialLayout.STATUS_Y + placement.yMeters,
+                GuitarSpatialLayout.STATUS_Z + placement.zMeters,
+            )
+        )
+    }
+}
+
+private fun isGuitarMoveTarget(entity: Entity): Boolean {
+    val name = entity.getName()
+    return name == GuitarRuntime.MOVE_SURFACE_NAME ||
+        name == ARTWORK_ENTITY_NAME ||
+        name.startsWith("guitar_s")
 }
 
 private fun guitarPointerHandler(onTarget: (Entity, Float, Long) -> Unit): (List<SpatialPointerInfo>) -> Boolean {
@@ -191,3 +272,5 @@ private fun guitarPointerHandler(onTarget: (Entity, Float, Long) -> Unit): (List
 }
 
 private const val INPUT_LOG_TAG = "SpatialGuitarInput"
+private const val PLACEMENT_LOG_TAG = "SpatialGuitarPlacement"
+private const val ARTWORK_ENTITY_NAME = "guitar_art"

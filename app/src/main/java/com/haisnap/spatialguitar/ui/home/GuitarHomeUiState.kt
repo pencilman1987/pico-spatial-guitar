@@ -9,6 +9,7 @@ data class GuitarHomeUiState(
     val velocity: Float = 0f,
     val playSequence: Long = 0L,
     val timbre: GuitarTimbre = GuitarTimbre.NYLON,
+    val isMoveMode: Boolean = false,
     val status: String = "准备就绪",
 )
 
@@ -19,6 +20,8 @@ sealed interface GuitarHomeEvent {
     ) : GuitarHomeEvent
 
     data class TimbreSelected(val timbre: GuitarTimbre) : GuitarHomeEvent
+
+    data class MoveModeChanged(val enabled: Boolean) : GuitarHomeEvent
 
     data object Reset : GuitarHomeEvent
 

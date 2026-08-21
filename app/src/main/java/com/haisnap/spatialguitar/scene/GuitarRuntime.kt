@@ -52,8 +52,13 @@ class GuitarRuntime(
                 )
             )
         }
+        addMoveSurface()
         addSoundHolePulse()
         addStringsAndTargets()
+    }
+
+    fun setPosition(position: Vector3) {
+        root.components[TransformComponent::class.java]?.setPosition(position)
     }
 
     fun strike(entity: Entity, velocity: Float, inputUptimeMillis: Long): Boolean {
@@ -89,6 +94,33 @@ class GuitarRuntime(
                 transform = requireNotNull(entity.components[TransformComponent::class.java]),
                 material = material,
             )
+    }
+
+    /**
+     * Invisible collider behind the strings. It is only targeted while move mode
+     * is active, giving the body and neck one continuous grab surface.
+     */
+    private fun addMoveSurface() {
+        val shape = ShapeResource.createBox(Vector3(0.82f, 0.32f, 0.003f))
+        val physicsMaterial = PhysicsMaterialResource()
+        resources += shape
+        resources += physicsMaterial
+
+        root.addChild(
+            Entity().apply {
+                setName(MOVE_SURFACE_NAME)
+                components.set(InteractableComponent())
+                components.set(
+                    CollisionComponent(
+                        collisionShape = listOf(shape),
+                        physicsMaterial = physicsMaterial,
+                    )
+                )
+                components[TransformComponent::class.java]?.setPosition(
+                    Vector3(-0.02f, 0f, MOVE_SURFACE_Z)
+                )
+            }
+        )
     }
 
     private fun addStringsAndTargets() {
@@ -232,7 +264,9 @@ class GuitarRuntime(
         var animationId: Long = 0L,
     )
 
-    private companion object {
+    companion object {
+        const val MOVE_SURFACE_NAME = "guitar_move_surface"
+
         const val STRING_COUNT = 6
         const val FRET_COUNT = 16
         const val NECK_START = -0.385f
@@ -240,6 +274,7 @@ class GuitarRuntime(
         const val BRIDGE_X = 0.250f
         const val SOUND_HOLE_X = 0.140f
         const val HIT_COOLDOWN_MS = 55L
+        const val MOVE_SURFACE_Z = 0.0008f
 
         val SOUND_HOLE = Color4(0.008f, 0.006f, 0.004f, 1f)
         val SILVER_STRING = Color4(0.90f, 0.91f, 0.94f, 1f)

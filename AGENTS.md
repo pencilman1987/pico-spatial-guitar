@@ -8,6 +8,10 @@ Web simulator's six strings, frets 0–15, press-and-drag traversal, dark
 fretboard, metallic strings, fret markers, and electric-blue strike feedback.
 The compact status attachment provides runtime A/B timbre selection: A is the
 default CC0 FreePats nylon set and B is the optional CC0 Martin HD28 steel set.
+The same attachment has an explicit placement mode: while enabled, dragging the
+guitar moves its artwork, playable ECS root, and status panel as one bounded
+group; Center restores the authored origin. Placement input and performance
+input are mutually exclusive so repositioning cannot sound notes.
 The current art direction uses an image-generated, transparent orthographic
 acoustic-guitar artwork (`drawable-nodpi/acoustic_guitar_front_v1.png`) for an
 accurate silhouette and wood finish. ECS renders only the six playable strings,
@@ -21,6 +25,8 @@ project.
 
 - `Main.kt`: thin Shared Space launcher.
 - `ui/home/`: MVI-lite state, events, ViewModel, screen and UI components.
+- `ui/home/GuitarPlacement.kt`: accumulated meter offsets, recoverable bounds,
+  and the centered placement baseline.
 - `ui/home/GuitarStrikeMotionTracker.kt`: X-axis rejection, 48 ms directional
   smoothing, and speed hysteresis for world-pose input.
 - `ui/home/GuitarPointerStrikeDetector.kt`: per-pointer target hysteresis and
@@ -49,6 +55,11 @@ project.
   is transparent. Glass belongs only to attachment/control panels.
 - Every playable hit target requires `CollisionComponent`,
   `InteractableComponent`, and `HoverEffectComponent`.
+- Keep the explicit placement toggle. In placement mode, route drag gestures to
+  the artwork, strings, and invisible body/neck move surface; in performance
+  mode, restore the original per-string recognizer. Convert Compose drag pixels
+  through `LocalDensity` and `LocalPhysicalLengthConverter` before applying ECS
+  meter transforms, and invert view-space Y for ECS Y.
 - Derive strike velocity from `inputDevicePose.rawPosition` world motion in
   meters; `SpatialPointerInfo.x/y` are Compose pixels and must not feed the
   meters-per-second curve. Keep Poke and ray/pinch input supported through the
@@ -77,18 +88,18 @@ pico-cli app launch com.haisnap.spatialguitar --activity .platform.LaunchActivit
 
 Run on a physical PICO OS 6 device for final Poke and audio-latency tuning.
 
-Latest emulator verification: 36 `testDebugUnitTest` tests, `lintDebug`,
+Latest emulator verification: 39 `testDebugUnitTest` tests, `lintDebug`,
 `assembleDebug`, and the SpatialUI design-style verifier pass. The 48 CC0 WAV
 assets are stored uncompressed in the APK;
 install/launch succeeds on `emulator-5554`; the settled scene is captured at
-`artifacts/ab-timbre-emulator.png`; both timbres decode without errors (A in
-2,618 ms, B in 2,934 ms), and no app crash, sample-decoding error, or lint error
-was observed. Lint still reports 29 pre-existing SDK/dependency-version and
-unused-resource warnings. The A/B APK is 46,918,027 bytes, +2.96 MiB versus the previous
-build. Shared-resource target
+`artifacts/guitar-move-mode-v2.png`; both timbres decode without errors, and no
+app crash, sample-decoding error, or lint error was observed. Lint still reports
+29 pre-existing SDK/dependency-version and unused-resource warnings. The debug
+APK is 46,886,812 bytes. Shared-resource target
 creation takes about 176 ms on that emulator, down from about 3.6 seconds. The
-CLI cannot automate volumetric string strikes, so final directional dynamics
-and perceived latency still require the physical-device play pass in
+CLI cannot automate volumetric controller/Poke dragging or string strikes, so
+final placement feel, directional dynamics, and perceived latency still require
+the physical-device play pass in
 `docs/pico-audio-calibration.md`.
 
 ## Natural next steps

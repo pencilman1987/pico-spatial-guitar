@@ -41,6 +41,15 @@ class GuitarHomeViewModel(
                 }
             }
 
+            is GuitarHomeEvent.MoveModeChanged -> {
+                _state.update {
+                    it.copy(
+                        isMoveMode = event.enabled,
+                        status = if (event.enabled) "移动模式 · 拖动琴身" else "演奏模式",
+                    )
+                }
+            }
+
             GuitarHomeEvent.Reset -> _state.value = GuitarHomeUiState()
             GuitarHomeEvent.AudioFailed -> _state.update { it.copy(status = "音频暂不可用") }
         }
