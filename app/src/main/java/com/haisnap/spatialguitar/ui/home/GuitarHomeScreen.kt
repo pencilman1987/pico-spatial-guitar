@@ -19,6 +19,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.haisnap.spatialguitar.audio.GuitarAudioEngine
 import com.haisnap.spatialguitar.domain.model.FretTarget
+import com.haisnap.spatialguitar.domain.model.GuitarChord
+import com.haisnap.spatialguitar.domain.model.GuitarPlayMode
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import com.haisnap.spatialguitar.scene.GuitarRuntime
 import com.haisnap.spatialguitar.scene.GuitarSpatialLayout
@@ -76,6 +78,35 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
         remember(viewModel) {
             { timbre: GuitarTimbre -> viewModel.onEvent(GuitarHomeEvent.TimbreSelected(timbre)) }
         }
+    val onChordStrum =
+        remember(audioEngine, viewModel, state.timbre) {
+            { chord: GuitarChord, velocity: Float, inputUptimeMillis: Long ->
+                val played =
+                    runCatching {
+                        audioEngine.playChord(
+                            timbre = state.timbre,
+                            chord = chord,
+                            velocity = velocity,
+                            inputUptimeMillis = inputUptimeMillis,
+                        )
+                    }.getOrDefault(false)
+                viewModel.onEvent(
+                    if (played) {
+                        GuitarHomeEvent.ChordStrummed(chord, velocity)
+                    } else {
+                        GuitarHomeEvent.AudioFailed
+                    }
+                )
+            }
+        }
+    val onPlayModeSelected =
+        remember(viewModel) {
+            { mode: GuitarPlayMode -> viewModel.onEvent(GuitarHomeEvent.PlayModeChanged(mode)) }
+        }
+    val onChordSelected =
+        remember(viewModel) {
+            { chord: GuitarChord -> viewModel.onEvent(GuitarHomeEvent.ChordSelected(chord)) }
+        }
     val onMoveModeChanged =
         remember(viewModel) {
             { enabled: Boolean -> viewModel.onEvent(GuitarHomeEvent.MoveModeChanged(enabled)) }
@@ -84,7 +115,10 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
     GuitarHomeContent(
         state = state,
         onPlay = onPlay,
+        onChordStrum = onChordStrum,
         onTimbreSelected = onTimbreSelected,
+        onPlayModeSelected = onPlayModeSelected,
+        onChordSelected = onChordSelected,
         onMoveModeChanged = onMoveModeChanged,
     )
 }
@@ -94,7 +128,10 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
 internal fun GuitarHomeContent(
     state: GuitarHomeUiState,
     onPlay: (FretTarget, Float, Long) -> Unit,
+    onChordStrum: (GuitarChord, Float, Long) -> Unit,
     onTimbreSelected: (GuitarTimbre) -> Unit,
+    onPlayModeSelected: (GuitarPlayMode) -> Unit,
+    onChordSelected: (GuitarChord) -> Unit,
     onMoveModeChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -103,6 +140,8 @@ internal fun GuitarHomeContent(
     var sceneHandles by remember { mutableStateOf<GuitarSceneHandles?>(null) }
     var placement by remember { mutableStateOf(GuitarPlacement.Centered) }
     val currentOnPlay by rememberUpdatedState(onPlay)
+    val currentOnChordStrum by rememberUpdatedState(onChordStrum)
+    val currentChord by rememberUpdatedState(state.selectedChord)
     val pixelsToMeters =
         remember(density, physicalLengthConverter) {
             { pixels: Float ->
@@ -120,7 +159,7 @@ internal fun GuitarHomeContent(
 
     SpatialView(
         modifier =
-            Modifier.fillMaxSize().pointerInput(state.isMoveMode, pixelsToMeters) {
+            Modifier.fillMaxSize().pointerInput(state.isMoveMode, state.playMode, pixelsToMeters) {
                 if (state.isMoveMode) {
                     detectSpatialDragGesture(
                         context = context,
@@ -139,6 +178,22 @@ internal fun GuitarHomeContent(
                             "x_m=${placement.xMeters} y_m=${placement.yMeters} z_m=${placement.zMeters}",
                         )
                     }
+                } else if (state.playMode == GuitarPlayMode.ACCOMPANIMENT) {
+                    detectSpatialPointerEvent(
+                        context = context,
+                        targetedToEntity =
+                            TargetEntity.any {
+                                it.getName() == GuitarRuntime.EASY_STRUM_SURFACE_NAME
+                            },
+                        onEvent =
+                            easyStrumPointerHandler { entity, velocity, inputUptimeMillis ->
+                                sceneHandles?.runtime?.easyStrum(
+                                    entity,
+                                    velocity,
+                                    inputUptimeMillis,
+                                )
+                            },
+                    )
                 } else {
                     detectSpatialPointerEvent(
                         context = context,
@@ -156,6 +211,9 @@ internal fun GuitarHomeContent(
                     rootPosition = Vector3(0f, GuitarSpatialLayout.ROOT_Y, 0f),
                     onPlayed = { target, velocity, inputUptimeMillis ->
                         currentOnPlay(target, velocity, inputUptimeMillis)
+                    },
+                    onStrummed = { velocity, inputUptimeMillis ->
+                        currentOnChordStrum(currentChord, velocity, inputUptimeMillis)
                     },
                 )
             val artwork = attachments.entity("guitar_art")?.also {
@@ -176,6 +234,8 @@ internal fun GuitarHomeContent(
                 GuitarStatusPanel(
                     state = state,
                     onTimbreSelected = onTimbreSelected,
+                    onPlayModeSelected = onPlayModeSelected,
+                    onChordSelected = onChordSelected,
                     onMoveModeChanged = onMoveModeChanged,
                     onCenterRequested = {
                         placement = GuitarPlacement.Centered
@@ -221,8 +281,52 @@ private class GuitarSceneHandles(
 private fun isGuitarMoveTarget(entity: Entity): Boolean {
     val name = entity.getName()
     return name == GuitarRuntime.MOVE_SURFACE_NAME ||
+        name == GuitarRuntime.EASY_STRUM_SURFACE_NAME ||
         name == ARTWORK_ENTITY_NAME ||
         name.startsWith("guitar_s")
+}
+
+private fun easyStrumPointerHandler(
+    onTarget: (Entity, Float, Long) -> Unit,
+): (List<SpatialPointerInfo>) -> Boolean {
+    val detector = EasyStrumDetector<Entity>()
+    return { events ->
+        events.forEach { event ->
+            val pointerKey = event.pointerId.toString()
+            val motion =
+                if (event.isUpEvent() || !event.pressed) {
+                    null
+                } else {
+                    val devicePosition = event.inputDevicePose.rawPosition
+                    GuitarGestureVelocity.worldSampleOrNull(
+                        xMeters = devicePosition.x,
+                        yMeters = devicePosition.y,
+                        zMeters = devicePosition.z,
+                        uptimeMillis = event.uptimeMillis,
+                    )
+                }
+
+            detector
+                .update(
+                    pointerKey = pointerKey,
+                    pressed = event.pressed,
+                    isUpEvent = event.isUpEvent(),
+                    target = event.targetedEntity,
+                    motion = motion,
+                    isPoke = event.kind == InteractionKind.Poke,
+                    uptimeMillis = event.uptimeMillis,
+                )
+                ?.let { strum ->
+                    onTarget(strum.target, strum.gain, strum.inputUptimeMillis)
+                    Log.d(
+                        INPUT_LOG_TAG,
+                        "easy_strum direction=${strum.direction} " +
+                            "speed_mps=${strum.speedMetersPerSecond} gain=${strum.gain}",
+                    )
+                }
+        }
+        true
+    }
 }
 
 private fun guitarPointerHandler(onTarget: (Entity, Float, Long) -> Unit): (List<SpatialPointerInfo>) -> Boolean {

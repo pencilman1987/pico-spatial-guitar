@@ -2,6 +2,8 @@ package com.haisnap.spatialguitar.ui.home
 
 import com.haisnap.spatialguitar.data.repository.DefaultGuitarRepository
 import com.haisnap.spatialguitar.domain.model.FretTarget
+import com.haisnap.spatialguitar.domain.model.GuitarChord
+import com.haisnap.spatialguitar.domain.model.GuitarPlayMode
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import com.haisnap.spatialguitar.domain.usecase.CalculateGuitarNoteUseCase
 import org.junit.Assert.assertEquals
@@ -16,9 +18,11 @@ class GuitarHomeViewModelTest {
     fun initialStateIsReady() {
         val state = viewModel().state.value
 
-        assertEquals("准备就绪", state.status)
+        assertEquals("伴奏模式 · 选择和弦，扫过音孔", state.status)
         assertNull(state.activeNote)
         assertEquals(GuitarTimbre.NYLON, state.timbre)
+        assertEquals(GuitarPlayMode.ACCOMPANIMENT, state.playMode)
+        assertEquals(GuitarChord.C_MAJOR, state.selectedChord)
         assertEquals(false, state.isMoveMode)
     }
 
@@ -87,5 +91,30 @@ class GuitarHomeViewModelTest {
         assertEquals(true, viewModel.state.value.isMoveMode)
         assertEquals("G4", viewModel.state.value.activeNote?.name)
         assertEquals("移动模式 · 拖动琴身", viewModel.state.value.status)
+    }
+
+    @Test
+    fun chordSelectionAndStrumProvideOneTouchAccompanimentState() {
+        val viewModel = viewModel()
+
+        viewModel.onEvent(GuitarHomeEvent.ChordSelected(GuitarChord.A_MINOR))
+        viewModel.onEvent(GuitarHomeEvent.ChordStrummed(GuitarChord.A_MINOR, 0.74f))
+
+        assertEquals(GuitarChord.A_MINOR, viewModel.state.value.selectedChord)
+        assertEquals("Am · 伴奏", viewModel.state.value.status)
+        assertEquals(0.74f, viewModel.state.value.velocity)
+        assertEquals(1L, viewModel.state.value.playSequence)
+    }
+
+    @Test
+    fun soloModeRemainsAvailableAndLeavesMoveMode() {
+        val viewModel = viewModel()
+        viewModel.onEvent(GuitarHomeEvent.MoveModeChanged(true))
+
+        viewModel.onEvent(GuitarHomeEvent.PlayModeChanged(GuitarPlayMode.SOLO))
+
+        assertEquals(GuitarPlayMode.SOLO, viewModel.state.value.playMode)
+        assertEquals(false, viewModel.state.value.isMoveMode)
+        assertEquals("单音模式 · 横跨琴弦演奏", viewModel.state.value.status)
     }
 }

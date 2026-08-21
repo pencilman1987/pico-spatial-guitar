@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.SystemClock
 import android.util.Log
+import com.haisnap.spatialguitar.domain.model.GuitarChord
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
@@ -25,6 +26,14 @@ class GuitarAudioEngine(assetManager: AssetManager) : Closeable {
         OPEN_MIDI.forEachIndexed { stringIndex, midi ->
             fallbackSampleFor(VoiceKey(stringIndex, midi))
         }
+        GuitarChord.entries
+            .flatMap { chord ->
+                chord.midiByString.mapIndexedNotNull { stringIndex, midi ->
+                    midi?.let { VoiceKey(stringIndex, it) }
+                }
+            }
+            .distinct()
+            .forEach(::fallbackSampleFor)
     }
 
     @Synchronized
@@ -73,6 +82,34 @@ class GuitarAudioEngine(assetManager: AssetManager) : Closeable {
             "procedural_fallback",
         )
         return played
+    }
+
+    /** Plays a complete beginner chord immediately, low string to high string. */
+    @Synchronized
+    fun playChord(
+        timbre: GuitarTimbre,
+        chord: GuitarChord,
+        velocity: Float,
+        inputUptimeMillis: Long = SystemClock.uptimeMillis(),
+    ): Boolean {
+        var anyPlayed = false
+        chord.midiByString.indices.reversed().forEach { stringIndex ->
+            val midi = chord.midiByString[stringIndex]
+            if (midi == null) {
+                stopString(stringIndex)
+            } else {
+                val notePlayed =
+                    play(
+                        timbre = timbre,
+                        stringIndex = stringIndex,
+                        midi = midi,
+                        velocity = velocity.coerceAtLeast(EASY_CHORD_MIN_GAIN),
+                        inputUptimeMillis = inputUptimeMillis,
+                    )
+                anyPlayed = notePlayed || anyPlayed
+            }
+        }
+        return anyPlayed
     }
 
     @Synchronized
@@ -142,6 +179,11 @@ class GuitarAudioEngine(assetManager: AssetManager) : Closeable {
         }
     }
 
+    private fun stopString(stringIndex: Int) {
+        activeSampleStreamByString.remove(stringIndex)?.let(samplePool::stop)
+        activeByString.remove(stringIndex)?.stop()
+    }
+
     private class Voice(private val track: AudioTrack) : Closeable {
         fun play(velocity: Float): Boolean =
             try {
@@ -171,6 +213,7 @@ class GuitarAudioEngine(assetManager: AssetManager) : Closeable {
     private companion object {
         const val TAG = "SpatialGuitarAudio"
         const val MIN_GAIN = 0.50f
+        const val EASY_CHORD_MIN_GAIN = 0.68f
         const val MAX_CACHED_VOICES = 24
         val OPEN_MIDI = intArrayOf(64, 59, 55, 50, 45, 40)
     }

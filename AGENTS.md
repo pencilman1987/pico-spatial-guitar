@@ -6,6 +6,11 @@ This is a native PICO OS 6 Spatial SDK 0.13.3 guitar simulator. It launches as
 a Volumetric `DefaultWindowContainer` in Shared Space and preserves the legacy
 Web simulator's six strings, frets 0–15, press-and-drag traversal, dark
 fretboard, metallic strings, fret markers, and electric-blue strike feedback.
+The default play mode is now beginner accompaniment: seven common chords map to
+one-tap chips, and one broad sound-hole collider behaves like a stringless
+guitar strum paddle. First contact always sounds; low-speed motion, direction
+reversal, and deliberate re-entry retrigger the selected chord. The previous
+96-target per-note interaction remains available as Solo mode.
 The compact status attachment provides runtime A/B timbre selection: A is the
 default CC0 FreePats nylon set and B is the optional CC0 Martin HD28 steel set.
 The same attachment has an explicit placement mode: while enabled, dragging the
@@ -29,6 +34,8 @@ project.
   and the centered placement baseline.
 - `ui/home/GuitarStrikeMotionTracker.kt`: X-axis rejection, 48 ms directional
   smoothing, and speed hysteresis for world-pose input.
+- `ui/home/EasyStrumDetector.kt`: forgiving accompaniment-pad contact,
+  low-speed stroke, reversal, re-entry, and repeat state machine.
 - `ui/home/GuitarPointerStrikeDetector.kt`: per-pointer target hysteresis and
   tap fallback, independent across hands/controllers.
 - `scene/GuitarRuntime.kt`: ECS geometry, colliders, target mapping and feedback.
@@ -55,6 +62,10 @@ project.
   is transparent. Glass belongs only to attachment/control panels.
 - Every playable hit target requires `CollisionComponent`,
   `InteractableComponent`, and `HoverEffectComponent`.
+- Keep accompaniment as the default. Its sound-hole target is intentionally a
+  broad `0.25 x 0.19 x 0.03 m` local box and uses `0.055/0.022 m/s`
+  enter/exit thresholds plus a guaranteed first-contact chord. Do not shrink it
+  to visual string thickness or require a precise fret hit.
 - Keep the explicit placement toggle. In placement mode, route drag gestures to
   the artwork, strings, and invisible body/neck move surface; in performance
   mode, restore the original per-string recognizer. Convert Compose drag pixels
@@ -88,23 +99,24 @@ pico-cli app launch com.haisnap.spatialguitar --activity .platform.LaunchActivit
 
 Run on a physical PICO OS 6 device for final Poke and audio-latency tuning.
 
-Latest emulator verification: 39 `testDebugUnitTest` tests, `lintDebug`,
+Latest emulator verification: 47 `testDebugUnitTest` tests, `lintDebug`,
 `assembleDebug`, and the SpatialUI design-style verifier pass. The 48 CC0 WAV
 assets are stored uncompressed in the APK;
 install/launch succeeds on `emulator-5554`; the settled scene is captured at
-`artifacts/guitar-move-mode-v2.png`; both timbres decode without errors, and no
+`artifacts/easy-accompaniment-clean.png`; both timbres decode without errors, and no
 app crash, sample-decoding error, or lint error was observed. Lint still reports
-29 pre-existing SDK/dependency-version and unused-resource warnings. The debug
-APK is 46,886,812 bytes. Shared-resource target
+pre-existing SDK/dependency-version and unused-resource warnings. Shared-resource target
 creation takes about 176 ms on that emulator, down from about 3.6 seconds. The
 CLI cannot automate volumetric controller/Poke dragging or string strikes, so
-final placement feel, directional dynamics, and perceived latency still require
+final broad-pad hit comfort, placement feel, directional dynamics, and perceived latency still require
 the physical-device play pass in
 `docs/pico-audio-calibration.md`.
 
 ## Natural next steps
 
 - Calibrate gesture velocity and end-to-end acoustic latency on a physical PICO headset.
+- Add optional song chord sheets, lyrics, transpose, and a simple metronome or
+  drum loop after the broad accompaniment pad is physically validated.
 - Run the A/B headset protocol in `docs/audio-ab-comparison.md`, then decide
   whether B should remain optional. Continue looking for an acoustic set that
   also has real velocity layers and per-string samples.

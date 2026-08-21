@@ -3,6 +3,7 @@ package com.haisnap.spatialguitar.ui.home
 import androidx.lifecycle.ViewModel
 import com.haisnap.spatialguitar.data.repository.DefaultGuitarRepository
 import com.haisnap.spatialguitar.domain.model.FretTarget
+import com.haisnap.spatialguitar.domain.model.GuitarPlayMode
 import com.haisnap.spatialguitar.domain.usecase.CalculateGuitarNoteUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,43 @@ class GuitarHomeViewModel(
                     it.copy(
                         timbre = event.timbre,
                         status = "音色 ${event.timbre.abLabel} · ${event.timbre.displayName}",
+                    )
+                }
+            }
+
+            is GuitarHomeEvent.PlayModeChanged -> {
+                _state.update {
+                    it.copy(
+                        playMode = event.mode,
+                        isMoveMode = false,
+                        status =
+                            if (event.mode == GuitarPlayMode.ACCOMPANIMENT) {
+                                "伴奏模式 · 选择和弦，扫过音孔"
+                            } else {
+                                "单音模式 · 横跨琴弦演奏"
+                            },
+                    )
+                }
+            }
+
+            is GuitarHomeEvent.ChordSelected -> {
+                _state.update {
+                    it.copy(
+                        selectedChord = event.chord,
+                        activeNote = null,
+                        status = "已选 ${event.chord.displayName} · 扫过音孔",
+                    )
+                }
+            }
+
+            is GuitarHomeEvent.ChordStrummed -> {
+                _state.update {
+                    it.copy(
+                        selectedChord = event.chord,
+                        activeNote = null,
+                        velocity = event.velocity.coerceIn(0.18f, 1f),
+                        playSequence = it.playSequence + 1L,
+                        status = "${event.chord.displayName} · 伴奏",
                     )
                 }
             }

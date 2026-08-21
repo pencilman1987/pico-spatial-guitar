@@ -18,9 +18,13 @@ internal data class GuitarStrikeMotion(
  * A Schmitt trigger then uses separate enter/exit thresholds so motion near a
  * single threshold cannot repeatedly arm and disarm the same string.
  */
-internal class GuitarStrikeMotionTracker {
-    private val smoother = DirectionalVelocitySmoother(SMOOTHING_WINDOW_MS)
-    private val gate = GuitarStrikeHysteresis(ENTER_SPEED_MPS, EXIT_SPEED_MPS)
+internal class GuitarStrikeMotionTracker(
+    smoothingWindowMillis: Long = DEFAULT_SMOOTHING_WINDOW_MS,
+    enterSpeedMetersPerSecond: Float = DEFAULT_ENTER_SPEED_MPS,
+    exitSpeedMetersPerSecond: Float = DEFAULT_EXIT_SPEED_MPS,
+) {
+    private val smoother = DirectionalVelocitySmoother(smoothingWindowMillis)
+    private val gate = GuitarStrikeHysteresis(enterSpeedMetersPerSecond, exitSpeedMetersPerSecond)
     private var previous: GuitarMotionSample? = null
 
     fun update(current: GuitarMotionSample, isPoke: Boolean): GuitarStrikeMotion {
@@ -72,10 +76,10 @@ internal class GuitarStrikeMotionTracker {
         )
 
     private companion object {
-        const val SMOOTHING_WINDOW_MS = 48L
+        const val DEFAULT_SMOOTHING_WINDOW_MS = 48L
         const val MAX_SAMPLE_GAP_MS = 120L
-        const val ENTER_SPEED_MPS = 0.10f
-        const val EXIT_SPEED_MPS = 0.045f
+        const val DEFAULT_ENTER_SPEED_MPS = 0.10f
+        const val DEFAULT_EXIT_SPEED_MPS = 0.045f
     }
 }
 

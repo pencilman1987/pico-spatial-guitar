@@ -30,6 +30,7 @@ import java.util.IdentityHashMap
 class GuitarRuntime(
     rootPosition: Vector3,
     private val onPlayed: (FretTarget, Float, Long) -> Unit,
+    private val onStrummed: (Float, Long) -> Unit,
 ) : Closeable {
     val root = Entity()
 
@@ -37,7 +38,10 @@ class GuitarRuntime(
     private val resources = mutableListOf<AutoCloseable>()
     private val targets = IdentityHashMap<Entity, FretTarget>()
     private val stringVisuals = IdentityHashMap<Entity, StringVisual>()
+    private val allStringVisuals = mutableListOf<StringVisual>()
     private val lastHitAt = mutableMapOf<FretTarget, Long>()
+    private var easyStrumSurface: Entity? = null
+    private var lastEasyStrumAt = Long.MIN_VALUE / 2
     private var resonanceVisual: ResonanceVisual? = null
 
     init {
@@ -53,6 +57,7 @@ class GuitarRuntime(
             )
         }
         addMoveSurface()
+        addEasyStrumSurface()
         addSoundHolePulse()
         addStringsAndTargets()
     }
@@ -69,6 +74,17 @@ class GuitarRuntime(
         val strength = velocity.coerceIn(0.18f, 1f)
         onPlayed(target, strength, inputUptimeMillis)
         stringVisuals[entity]?.let(::animateString)
+        resonanceVisual?.let(::animateResonance)
+        return true
+    }
+
+    fun easyStrum(entity: Entity, velocity: Float, inputUptimeMillis: Long): Boolean {
+        if (entity !== easyStrumSurface) return false
+        if (inputUptimeMillis - lastEasyStrumAt < EASY_STRUM_COOLDOWN_MS) return false
+        lastEasyStrumAt = inputUptimeMillis
+
+        onStrummed(velocity.coerceIn(EASY_STRUM_MIN_GAIN, 1f), inputUptimeMillis)
+        allStringVisuals.forEach(::animateString)
         resonanceVisual?.let(::animateResonance)
         return true
     }
@@ -123,6 +139,33 @@ class GuitarRuntime(
         )
     }
 
+    /**
+     * LiberLive-style broad strum paddle around the sound hole. It is selected
+     * only in accompaniment mode, so users never need to aim at a thin string.
+     */
+    private fun addEasyStrumSurface() {
+        val shape = ShapeResource.createBox(Vector3(0.25f, 0.19f, 0.03f))
+        val physicsMaterial = PhysicsMaterialResource()
+        resources += shape
+        resources += physicsMaterial
+
+        easyStrumSurface =
+            Entity().apply {
+                setName(EASY_STRUM_SURFACE_NAME)
+                components.set(InteractableComponent())
+                components.set(HoverEffectComponent())
+                components.set(
+                    CollisionComponent(
+                        collisionShape = listOf(shape),
+                        physicsMaterial = physicsMaterial,
+                    )
+                )
+                components[TransformComponent::class.java]?.setPosition(
+                    Vector3(SOUND_HOLE_X, 0f, EASY_STRUM_SURFACE_Z)
+                )
+            }.also(root::addChild)
+    }
+
     private fun addStringsAndTargets() {
         val segments = segmentBounds()
         val targetShape = ShapeResource.createBox(Vector3(1f, GuitarSpatialLayout.STRING_HIT_HEIGHT, 0.014f))
@@ -144,6 +187,7 @@ class GuitarRuntime(
                     thickness = thickness,
                     color = restingColor,
                 )
+            allStringVisuals += stringVisual
             segments.forEachIndexed { fret, bounds ->
                 val width = bounds.second - bounds.first
                 val target = FretTarget(stringIndex, fret)
@@ -266,6 +310,7 @@ class GuitarRuntime(
 
     companion object {
         const val MOVE_SURFACE_NAME = "guitar_move_surface"
+        const val EASY_STRUM_SURFACE_NAME = "guitar_easy_strum_surface"
 
         const val STRING_COUNT = 6
         const val FRET_COUNT = 16
@@ -274,7 +319,10 @@ class GuitarRuntime(
         const val BRIDGE_X = 0.250f
         const val SOUND_HOLE_X = 0.140f
         const val HIT_COOLDOWN_MS = 55L
+        const val EASY_STRUM_COOLDOWN_MS = 70L
+        const val EASY_STRUM_MIN_GAIN = 0.68f
         const val MOVE_SURFACE_Z = 0.0008f
+        const val EASY_STRUM_SURFACE_Z = 0.009f
 
         val SOUND_HOLE = Color4(0.008f, 0.006f, 0.004f, 1f)
         val SILVER_STRING = Color4(0.90f, 0.91f, 0.94f, 1f)
