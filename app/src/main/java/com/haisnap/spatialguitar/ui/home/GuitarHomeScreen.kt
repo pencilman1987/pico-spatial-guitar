@@ -21,6 +21,7 @@ import com.haisnap.spatialguitar.audio.GuitarAudioEngine
 import com.haisnap.spatialguitar.domain.model.FretTarget
 import com.haisnap.spatialguitar.domain.model.GuitarChord
 import com.haisnap.spatialguitar.domain.model.GuitarPlayMode
+import com.haisnap.spatialguitar.domain.model.GuitarSong
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import com.haisnap.spatialguitar.scene.GuitarRuntime
 import com.haisnap.spatialguitar.scene.GuitarSpatialLayout
@@ -79,14 +80,19 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
             { timbre: GuitarTimbre -> viewModel.onEvent(GuitarHomeEvent.TimbreSelected(timbre)) }
         }
     val onChordStrum =
-        remember(audioEngine, viewModel, state.timbre) {
-            { chord: GuitarChord, velocity: Float, inputUptimeMillis: Long ->
+        remember(audioEngine, viewModel) {
+            { _: GuitarChord, velocity: Float, inputUptimeMillis: Long ->
+                // Read the ViewModel synchronously so a fast fifth strum uses
+                // the newly advanced chord even before Compose recomposes.
+                val performanceState = viewModel.state.value
+                val chord = performanceState.selectedChord
                 val played =
                     runCatching {
                         audioEngine.playChord(
-                            timbre = state.timbre,
+                            timbre = performanceState.timbre,
                             chord = chord,
                             velocity = velocity,
+                            transposeSemitones = performanceState.transposeSemitones,
                             inputUptimeMillis = inputUptimeMillis,
                         )
                     }.getOrDefault(false)
@@ -107,6 +113,16 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
         remember(viewModel) {
             { chord: GuitarChord -> viewModel.onEvent(GuitarHomeEvent.ChordSelected(chord)) }
         }
+    val onSongSelected =
+        remember(viewModel) {
+            { song: GuitarSong? -> viewModel.onEvent(GuitarHomeEvent.SongSelected(song)) }
+        }
+    val onTransposeChanged =
+        remember(viewModel) {
+            { deltaSemitones: Int ->
+                viewModel.onEvent(GuitarHomeEvent.TransposeChanged(deltaSemitones))
+            }
+        }
     val onMoveModeChanged =
         remember(viewModel) {
             { enabled: Boolean -> viewModel.onEvent(GuitarHomeEvent.MoveModeChanged(enabled)) }
@@ -119,6 +135,8 @@ fun GuitarHomeScreen(viewModel: GuitarHomeViewModel = viewModel()) {
         onTimbreSelected = onTimbreSelected,
         onPlayModeSelected = onPlayModeSelected,
         onChordSelected = onChordSelected,
+        onSongSelected = onSongSelected,
+        onTransposeChanged = onTransposeChanged,
         onMoveModeChanged = onMoveModeChanged,
     )
 }
@@ -132,6 +150,8 @@ internal fun GuitarHomeContent(
     onTimbreSelected: (GuitarTimbre) -> Unit,
     onPlayModeSelected: (GuitarPlayMode) -> Unit,
     onChordSelected: (GuitarChord) -> Unit,
+    onSongSelected: (GuitarSong?) -> Unit,
+    onTransposeChanged: (Int) -> Unit,
     onMoveModeChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -236,6 +256,8 @@ internal fun GuitarHomeContent(
                     onTimbreSelected = onTimbreSelected,
                     onPlayModeSelected = onPlayModeSelected,
                     onChordSelected = onChordSelected,
+                    onSongSelected = onSongSelected,
+                    onTransposeChanged = onTransposeChanged,
                     onMoveModeChanged = onMoveModeChanged,
                     onCenterRequested = {
                         placement = GuitarPlacement.Centered

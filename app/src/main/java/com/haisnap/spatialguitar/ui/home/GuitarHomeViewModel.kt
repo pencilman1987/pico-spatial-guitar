@@ -44,9 +44,13 @@ class GuitarHomeViewModel(
 
             is GuitarHomeEvent.PlayModeChanged -> {
                 _state.update {
+                    if (event.mode == it.playMode) return@update it
                     it.copy(
                         playMode = event.mode,
                         isMoveMode = false,
+                        selectedSong = null,
+                        songStepIndex = 0,
+                        songStrumsInStep = 0,
                         status =
                             if (event.mode == GuitarPlayMode.ACCOMPANIMENT) {
                                 "伴奏模式 · 选择和弦，扫过音孔"
@@ -61,21 +65,92 @@ class GuitarHomeViewModel(
                 _state.update {
                     it.copy(
                         selectedChord = event.chord,
+                        selectedSong = null,
+                        songStepIndex = 0,
+                        songStrumsInStep = 0,
                         activeNote = null,
-                        status = "已选 ${event.chord.displayName} · 扫过音孔",
+                        status =
+                            "已选 ${event.chord.displayNameAt(it.transposeSemitones)} · 扫过音孔",
+                    )
+                }
+            }
+
+            is GuitarHomeEvent.SongSelected -> {
+                _state.update {
+                    val firstStep = event.song?.steps?.firstOrNull()
+                    it.copy(
+                        playMode = GuitarPlayMode.ACCOMPANIMENT,
+                        selectedSong = event.song,
+                        songStepIndex = 0,
+                        songStrumsInStep = 0,
+                        selectedChord = firstStep?.chord ?: it.selectedChord,
+                        activeNote = null,
+                        isMoveMode = false,
+                        status =
+                            event.song?.let { song ->
+                                "跟唱 · ${song.title} · ${song.keyNameAt(it.transposeSemitones)} 调"
+                            } ?: "自由伴奏 · 选择和弦",
+                    )
+                }
+            }
+
+            is GuitarHomeEvent.TransposeChanged -> {
+                _state.update {
+                    val transposed =
+                        (it.transposeSemitones + event.deltaSemitones).coerceIn(
+                            MIN_TRANSPOSE_SEMITONES,
+                            MAX_TRANSPOSE_SEMITONES,
+                        )
+                    it.copy(
+                        transposeSemitones = transposed,
+                        status =
+                            it.selectedSong?.let { song ->
+                                "${song.title} · ${song.keyNameAt(transposed)} 调"
+                            } ?: "移调 ${transposeLabel(transposed)}",
                     )
                 }
             }
 
             is GuitarHomeEvent.ChordStrummed -> {
                 _state.update {
-                    it.copy(
-                        selectedChord = event.chord,
-                        activeNote = null,
-                        velocity = event.velocity.coerceIn(0.18f, 1f),
-                        playSequence = it.playSequence + 1L,
-                        status = "${event.chord.displayName} · 伴奏",
-                    )
+                    val song = it.selectedSong
+                    if (song == null) {
+                        it.copy(
+                            selectedChord = event.chord,
+                            activeNote = null,
+                            velocity = event.velocity.coerceIn(0.18f, 1f),
+                            playSequence = it.playSequence + 1L,
+                            status =
+                                "${event.chord.displayNameAt(it.transposeSemitones)} · 自由伴奏",
+                        )
+                    } else {
+                        val step = song.steps[it.songStepIndex]
+                        val strumCount = it.songStrumsInStep + 1
+                        if (strumCount >= step.strums) {
+                            val nextIndex = (it.songStepIndex + 1) % song.steps.size
+                            val nextStep = song.steps[nextIndex]
+                            it.copy(
+                                selectedChord = nextStep.chord,
+                                songStepIndex = nextIndex,
+                                songStrumsInStep = 0,
+                                activeNote = null,
+                                velocity = event.velocity.coerceIn(0.18f, 1f),
+                                playSequence = it.playSequence + 1L,
+                                status =
+                                    "换 ${nextStep.chord.displayNameAt(it.transposeSemitones)} · 继续扫",
+                            )
+                        } else {
+                            it.copy(
+                                selectedChord = step.chord,
+                                songStrumsInStep = strumCount,
+                                activeNote = null,
+                                velocity = event.velocity.coerceIn(0.18f, 1f),
+                                playSequence = it.playSequence + 1L,
+                                status =
+                                    "${step.chord.displayNameAt(it.transposeSemitones)} · 再扫 ${step.strums - strumCount} 下",
+                            )
+                        }
+                    }
                 }
             }
 
@@ -91,5 +166,16 @@ class GuitarHomeViewModel(
             GuitarHomeEvent.Reset -> _state.value = GuitarHomeUiState()
             GuitarHomeEvent.AudioFailed -> _state.update { it.copy(status = "音频暂不可用") }
         }
+    }
+
+    private fun transposeLabel(semitones: Int): String =
+        when {
+            semitones > 0 -> "+$semitones"
+            else -> semitones.toString()
+        }
+
+    private companion object {
+        const val MIN_TRANSPOSE_SEMITONES = -5
+        const val MAX_TRANSPOSE_SEMITONES = 6
     }
 }

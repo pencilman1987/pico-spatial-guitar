@@ -6,11 +6,14 @@ This is a native PICO OS 6 Spatial SDK 0.13.3 guitar simulator. It launches as
 a Volumetric `DefaultWindowContainer` in Shared Space and preserves the legacy
 Web simulator's six strings, frets 0–15, press-and-drag traversal, dark
 fretboard, metallic strings, fret markers, and electric-blue strike feedback.
-The default play mode is now beginner accompaniment: seven common chords map to
-one-tap chips, and one broad sound-hole collider behaves like a stringless
-guitar strum paddle. First contact always sounds; low-speed motion, direction
-reversal, and deliberate re-entry retrigger the selected chord. The previous
-96-target per-note interaction remains available as Solo mode.
+The default play mode is now guided sing-along. Two redistributable original
+practice songs show current/next lyrics and chords; every four strums advances
+the lyric and chord automatically, and transpose changes both labels and audio
+from -5 to +6 semitones. Free accompaniment keeps seven one-tap chords, and one
+broad sound-hole collider behaves like a stringless guitar strum paddle. First
+contact always sounds; low-speed motion, direction reversal, and deliberate
+re-entry retrigger the selected chord. The previous 96-target per-note
+interaction remains available as Solo mode.
 The compact status attachment provides runtime A/B timbre selection: A is the
 default CC0 FreePats nylon set and B is the optional CC0 Martin HD28 steel set.
 The same attachment has an explicit placement mode: while enabled, dragging the
@@ -30,6 +33,7 @@ project.
 
 - `Main.kt`: thin Shared Space launcher.
 - `ui/home/`: MVI-lite state, events, ViewModel, screen and UI components.
+- `domain/model/GuitarSong.kt`: original lyric/chord cues and measure lengths.
 - `ui/home/GuitarPlacement.kt`: accumulated meter offsets, recoverable bounds,
   and the centered placement baseline.
 - `ui/home/GuitarStrikeMotionTracker.kt`: X-axis rejection, 48 ms directional
@@ -99,12 +103,15 @@ pico-cli app launch com.haisnap.spatialguitar --activity .platform.LaunchActivit
 
 Run on a physical PICO OS 6 device for final Poke and audio-latency tuning.
 
-Latest emulator verification: 47 `testDebugUnitTest` tests, `lintDebug`,
+Latest host verification: 56 `testDebugUnitTest` tests, `lintDebug`,
 `assembleDebug`, and the SpatialUI design-style verifier pass. The 48 CC0 WAV
-assets are stored uncompressed in the APK;
-install/launch succeeds on `emulator-5554`; the settled scene is captured at
-`artifacts/easy-accompaniment-clean.png`; both timbres decode without errors, and no
-app crash, sample-decoding error, or lint error was observed. Lint still reports
+assets are stored uncompressed in the APK. Final-build install/launch succeeds
+on `emulator-5554`; both timbres decode without errors in about 5.2 seconds on
+that emulator, the app process remains alive, and its fresh crash buffer is
+empty. The latest unobstructed guided-panel reference is
+`artifacts/guided-sing-along-settled.png`; later capture attempts were obscured
+by the emulator's system launcher/another app's stale ANR, not by a guitar-app
+failure. No sample-decoding or lint error was observed. Lint still reports
 pre-existing SDK/dependency-version and unused-resource warnings. Shared-resource target
 creation takes about 176 ms on that emulator, down from about 3.6 seconds. The
 CLI cannot automate volumetric controller/Poke dragging or string strikes, so
@@ -115,8 +122,8 @@ the physical-device play pass in
 ## Natural next steps
 
 - Calibrate gesture velocity and end-to-end acoustic latency on a physical PICO headset.
-- Add optional song chord sheets, lyrics, transpose, and a simple metronome or
-  drum loop after the broad accompaniment pad is physically validated.
+- Add an optional count-in/metronome or simple drum loop after the broad
+  accompaniment pad is physically validated.
 - Run the A/B headset protocol in `docs/audio-ab-comparison.md`, then decide
   whether B should remain optional. Continue looking for an acoustic set that
   also has real velocity layers and per-string samples.

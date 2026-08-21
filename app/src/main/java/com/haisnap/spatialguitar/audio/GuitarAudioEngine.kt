@@ -90,11 +90,13 @@ class GuitarAudioEngine(assetManager: AssetManager) : Closeable {
         timbre: GuitarTimbre,
         chord: GuitarChord,
         velocity: Float,
+        transposeSemitones: Int = 0,
         inputUptimeMillis: Long = SystemClock.uptimeMillis(),
     ): Boolean {
         var anyPlayed = false
-        chord.midiByString.indices.reversed().forEach { stringIndex ->
-            val midi = chord.midiByString[stringIndex]
+        val transposedMidiByString = chord.midiByStringAt(transposeSemitones)
+        transposedMidiByString.indices.reversed().forEach { stringIndex ->
+            val midi = transposedMidiByString[stringIndex]
             if (midi == null) {
                 stopString(stringIndex)
             } else {

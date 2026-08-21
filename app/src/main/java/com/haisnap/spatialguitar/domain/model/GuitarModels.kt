@@ -39,18 +39,31 @@ enum class GuitarPlayMode {
  */
 enum class GuitarChord(
     val displayName: String,
+    private val rootPitchClass: Int,
+    private val isMinor: Boolean,
     val midiByString: List<Int?>,
 ) {
-    C_MAJOR("C", listOf(64, 60, 55, 52, 48, null)),
-    G_MAJOR("G", listOf(67, 59, 55, 50, 47, 43)),
-    A_MINOR("Am", listOf(64, 60, 57, 52, 45, null)),
-    F_MAJOR("F", listOf(65, 60, 57, 53, 48, 41)),
-    E_MINOR("Em", listOf(64, 59, 55, 52, 47, 40)),
-    D_MINOR("Dm", listOf(65, 62, 57, 50, null, null)),
-    E_MAJOR("E", listOf(64, 59, 56, 52, 47, 40)),
+    C_MAJOR("C", 0, false, listOf(64, 60, 55, 52, 48, null)),
+    G_MAJOR("G", 7, false, listOf(67, 59, 55, 50, 47, 43)),
+    A_MINOR("Am", 9, true, listOf(64, 60, 57, 52, 45, null)),
+    F_MAJOR("F", 5, false, listOf(65, 60, 57, 53, 48, 41)),
+    E_MINOR("Em", 4, true, listOf(64, 59, 55, 52, 47, 40)),
+    D_MINOR("Dm", 2, true, listOf(65, 62, 57, 50, null, null)),
+    E_MAJOR("E", 4, false, listOf(64, 59, 56, 52, 47, 40)),
     ;
 
     init {
         require(midiByString.size == 6)
     }
+
+    fun displayNameAt(transposeSemitones: Int): String =
+        pitchName(rootPitchClass + transposeSemitones) + if (isMinor) "m" else ""
+
+    fun midiByStringAt(transposeSemitones: Int): List<Int?> =
+        midiByString.map { midi -> midi?.plus(transposeSemitones) }
 }
+
+internal fun pitchName(pitchClass: Int): String =
+    PITCH_NAMES[Math.floorMod(pitchClass, PITCH_NAMES.size)]
+
+private val PITCH_NAMES = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")

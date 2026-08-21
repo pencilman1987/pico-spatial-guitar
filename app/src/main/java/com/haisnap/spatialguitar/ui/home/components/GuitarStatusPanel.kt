@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.haisnap.spatialguitar.domain.model.GuitarChord
 import com.haisnap.spatialguitar.domain.model.GuitarPlayMode
+import com.haisnap.spatialguitar.domain.model.GuitarSong
 import com.haisnap.spatialguitar.ui.home.GuitarHomeUiState
 import com.haisnap.spatialguitar.domain.model.GuitarTimbre
 import com.pico.spatial.ui.design.ChipsDefaults
@@ -30,13 +31,15 @@ fun GuitarStatusPanel(
     onTimbreSelected: (GuitarTimbre) -> Unit,
     onPlayModeSelected: (GuitarPlayMode) -> Unit,
     onChordSelected: (GuitarChord) -> Unit,
+    onSongSelected: (GuitarSong?) -> Unit,
+    onTransposeChanged: (Int) -> Unit,
     onMoveModeChanged: (Boolean) -> Unit,
     onCenterRequested: () -> Unit,
 ) {
     Column(
         modifier =
             Modifier
-                .size(760.dp, 250.dp)
+                .size(820.dp, 270.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .backgroundMaterial(enable = true, style = Material.Regular)
                 .padding(horizontal = 22.dp, vertical = 14.dp),
@@ -85,38 +88,135 @@ fun GuitarStatusPanel(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "和弦", style = PicoTheme.typography.labelSmall)
-                GuitarChord.entries.forEach { chord ->
+                Text(text = "歌曲", style = PicoTheme.typography.labelSmall)
+                ToggleableChip(
+                    label = { Text("自由") },
+                    isToggleOn = state.selectedSong == null,
+                    onClick = { onSongSelected(null) },
+                    chipSize = ChipsDefaults.Small,
+                )
+                GuitarSong.entries.forEach { song ->
                     ToggleableChip(
-                        label = { Text(chord.displayName) },
-                        isToggleOn = state.selectedChord == chord,
-                        onClick = { onChordSelected(chord) },
+                        label = { Text(song.title) },
+                        isToggleOn = state.selectedSong == song,
+                        onClick = { onSongSelected(song) },
                         chipSize = ChipsDefaults.Small,
                     )
                 }
+                ButtonChip(
+                    label = { Text("降调") },
+                    onClick = { onTransposeChanged(-1) },
+                    chipSize = ChipsDefaults.Small,
+                )
+                Text(
+                    text = state.transposeDisplay,
+                    style = PicoTheme.typography.labelSmall,
+                )
+                ButtonChip(
+                    label = { Text("升调") },
+                    onClick = { onTransposeChanged(1) },
+                    chipSize = ChipsDefaults.Small,
+                )
             }
         }
-        Text(
-            text =
-                when {
-                    state.isMoveMode -> "MOVE"
-                    state.playMode == GuitarPlayMode.ACCOMPANIMENT -> state.selectedChord.displayName
-                    else -> state.activeNote?.name ?: "READY"
-                },
-            style = PicoTheme.typography.titleLarge,
-        )
-        Text(
-            text =
-                if (state.isMoveMode) {
-                    "拖动琴身调整位置 · 完成后关闭移动"
-                } else if (state.playMode == GuitarPlayMode.ACCOMPANIMENT) {
-                    "大范围扫过音孔 · 轻触也会发声 · 上下往返即可伴奏"
-                } else {
-                    state.activeNote?.let {
-                        "第 ${it.target.stringIndex + 1} 弦  ·  第 ${it.target.fret} 品  ·  ${(state.velocity * 100).toInt()}%"
-                    } ?: "${state.timbre.technicalName} · 横跨琴弦扫弦"
-                },
-            style = PicoTheme.typography.bodyMedium,
-        )
+        when {
+            state.isMoveMode -> MoveInstructions()
+            state.playMode == GuitarPlayMode.SOLO -> SoloStatus(state)
+            state.selectedSong != null -> GuidedSongStatus(state)
+            else -> FreeAccompanimentStatus(state, onChordSelected)
+        }
     }
 }
+
+@Composable
+private fun GuidedSongStatus(state: GuitarHomeUiState) {
+    val currentStep = state.currentSongStep ?: return
+    val nextStep = state.nextSongStep ?: return
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = currentStep.chord.displayNameAt(state.transposeSemitones),
+            style = PicoTheme.typography.titleLarge,
+        )
+        Column(
+            modifier = Modifier.size(700.dp, 112.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(text = currentStep.lyric, style = PicoTheme.typography.titleLarge)
+            Text(
+                text =
+                    "下一句  ${nextStep.chord.displayNameAt(state.transposeSemitones)}  ${nextStep.lyric}",
+                style = PicoTheme.typography.bodyMedium,
+            )
+            Text(
+                text =
+                    "${strumDots(currentStep.strums, state.songStrumsInStep)}  再扫 ${state.remainingStrums} 下自动换和弦",
+                style = PicoTheme.typography.labelSmall,
+            )
+        }
+    }
+    Text(
+        text = "扫过音孔跟着唱 · 不用按弦 · 每 4 下自动进一句",
+        style = PicoTheme.typography.bodyMedium,
+    )
+}
+
+@Composable
+private fun FreeAccompanimentStatus(
+    state: GuitarHomeUiState,
+    onChordSelected: (GuitarChord) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "和弦", style = PicoTheme.typography.labelSmall)
+        GuitarChord.entries.forEach { chord ->
+            ToggleableChip(
+                label = { Text(chord.displayNameAt(state.transposeSemitones)) },
+                isToggleOn = state.selectedChord == chord,
+                onClick = { onChordSelected(chord) },
+                chipSize = ChipsDefaults.Small,
+            )
+        }
+    }
+    Text(
+        text = state.selectedChord.displayNameAt(state.transposeSemitones),
+        style = PicoTheme.typography.titleLarge,
+    )
+    Text(
+        text = "大范围扫过音孔 · 轻触也会发声 · 上下往返即可伴奏",
+        style = PicoTheme.typography.bodyMedium,
+    )
+}
+
+@Composable
+private fun MoveInstructions() {
+    Text(text = "MOVE", style = PicoTheme.typography.titleLarge)
+    Text(
+        text = "拖动琴身调整位置 · 完成后关闭移动",
+        style = PicoTheme.typography.bodyMedium,
+    )
+}
+
+@Composable
+private fun SoloStatus(state: GuitarHomeUiState) {
+    Text(
+        text = state.activeNote?.name ?: "READY",
+        style = PicoTheme.typography.titleLarge,
+    )
+    Text(
+        text =
+            state.activeNote?.let {
+                "第 ${it.target.stringIndex + 1} 弦  ·  第 ${it.target.fret} 品  ·  ${(state.velocity * 100).toInt()}%"
+            } ?: "${state.timbre.technicalName} · 横跨琴弦扫弦",
+        style = PicoTheme.typography.bodyMedium,
+    )
+}
+
+private fun strumDots(total: Int, completed: Int): String =
+    (0 until total).joinToString(separator = " ") { index -> if (index < completed) "●" else "○" }
