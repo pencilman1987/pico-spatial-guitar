@@ -159,7 +159,7 @@ private fun GuidedSongStatus(state: GuitarHomeUiState) {
         }
     }
     Text(
-        text = "扫过音孔跟着唱 · 不用按弦 · 每 4 下自动进一句",
+        text = "扫过琴身中部大安全区 · 不用碰到琴弦 · 每 4 下自动进一句",
         style = PicoTheme.typography.bodyMedium,
     )
 }
@@ -189,7 +189,7 @@ private fun FreeAccompanimentStatus(
         style = PicoTheme.typography.titleLarge,
     )
     Text(
-        text = "大范围扫过音孔 · 轻触也会发声 · 上下往返即可伴奏",
+        text = "扫过琴身中部大安全区 · 离琴面一掌也能命中 · 上下往返即可伴奏",
         style = PicoTheme.typography.bodyMedium,
     )
 }

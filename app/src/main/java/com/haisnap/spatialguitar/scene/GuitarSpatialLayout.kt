@@ -7,6 +7,12 @@ internal object GuitarSpatialLayout {
     const val ARTWORK_Z = 0f
     const val STRING_Z = 0.0035f
     const val SOUND_HOLE_Z = 0.002f
+    const val SAFE_STRUM_CENTER_X = 0.130f
+    const val SAFE_STRUM_CENTER_Y = 0f
+    const val SAFE_STRUM_CENTER_Z = 0.030f
+    const val SAFE_STRUM_WIDTH = 0.440f
+    const val SAFE_STRUM_HEIGHT = 0.340f
+    const val SAFE_STRUM_DEPTH = 0.160f
     const val STATUS_X = 0.21f
     const val STATUS_Y = 0.215f
     const val STATUS_Z = 0.055f

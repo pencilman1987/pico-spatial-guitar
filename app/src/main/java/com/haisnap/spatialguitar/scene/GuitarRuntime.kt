@@ -2,6 +2,7 @@ package com.haisnap.spatialguitar.scene
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.haisnap.spatialguitar.domain.model.FretTarget
 import com.pico.spatial.core.ecs.CollisionComponent
 import com.pico.spatial.core.ecs.Entity
@@ -140,11 +141,19 @@ class GuitarRuntime(
     }
 
     /**
-     * LiberLive-style broad strum paddle around the sound hole. It is selected
-     * only in accompaniment mode, so users never need to aim at a thin string.
+     * Body-sized safety volume around the sound hole. It is selected only in
+     * accompaniment mode, so users can strum through the middle of the guitar
+     * without touching a thin visual string or staying close to the art plane.
      */
     private fun addEasyStrumSurface() {
-        val shape = ShapeResource.createBox(Vector3(0.25f, 0.19f, 0.03f))
+        val shape =
+            ShapeResource.createBox(
+                Vector3(
+                    GuitarSpatialLayout.SAFE_STRUM_WIDTH,
+                    GuitarSpatialLayout.SAFE_STRUM_HEIGHT,
+                    GuitarSpatialLayout.SAFE_STRUM_DEPTH,
+                )
+            )
         val physicsMaterial = PhysicsMaterialResource()
         resources += shape
         resources += physicsMaterial
@@ -161,9 +170,22 @@ class GuitarRuntime(
                     )
                 )
                 components[TransformComponent::class.java]?.setPosition(
-                    Vector3(SOUND_HOLE_X, 0f, EASY_STRUM_SURFACE_Z)
+                    Vector3(
+                        GuitarSpatialLayout.SAFE_STRUM_CENTER_X,
+                        GuitarSpatialLayout.SAFE_STRUM_CENTER_Y,
+                        GuitarSpatialLayout.SAFE_STRUM_CENTER_Z,
+                    )
                 )
             }.also(root::addChild)
+
+        Log.i(
+            TAG,
+            "safe_strum_zone_world_m=" +
+                "${GuitarSpatialLayout.SAFE_STRUM_WIDTH * GuitarSpatialLayout.ROOT_SCALE}x" +
+                "${GuitarSpatialLayout.SAFE_STRUM_HEIGHT * GuitarSpatialLayout.ROOT_SCALE}x" +
+                "${GuitarSpatialLayout.SAFE_STRUM_DEPTH * GuitarSpatialLayout.ROOT_SCALE} " +
+                "front_reach_m=${(GuitarSpatialLayout.SAFE_STRUM_CENTER_Z + GuitarSpatialLayout.SAFE_STRUM_DEPTH / 2f) * GuitarSpatialLayout.ROOT_SCALE}",
+        )
     }
 
     private fun addStringsAndTargets() {
@@ -322,7 +344,7 @@ class GuitarRuntime(
         const val EASY_STRUM_COOLDOWN_MS = 70L
         const val EASY_STRUM_MIN_GAIN = 0.68f
         const val MOVE_SURFACE_Z = 0.0008f
-        const val EASY_STRUM_SURFACE_Z = 0.009f
+        const val TAG = "SpatialGuitarRuntime"
 
         val SOUND_HOLE = Color4(0.008f, 0.006f, 0.004f, 1f)
         val SILVER_STRING = Color4(0.90f, 0.91f, 0.94f, 1f)

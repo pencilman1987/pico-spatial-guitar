@@ -67,9 +67,11 @@ project.
 - Every playable hit target requires `CollisionComponent`,
   `InteractableComponent`, and `HoverEffectComponent`.
 - Keep accompaniment as the default. Its sound-hole target is intentionally a
-  broad `0.25 x 0.19 x 0.03 m` local box and uses `0.055/0.022 m/s`
-  enter/exit thresholds plus a guaranteed first-contact chord. Do not shrink it
-  to visual string thickness or require a precise fret hit.
+  body-sized `0.44 x 0.34 x 0.16 m` local safety volume (about
+  `0.58 x 0.45 x 0.21 m` after root scale, reaching about `0.14 m` in front of
+  the guitar) and uses `0.055/0.022 m/s` enter/exit thresholds plus a guaranteed
+  first-contact chord. Do not shrink it to visual string thickness or require a
+  precise fret hit.
 - Keep the explicit placement toggle. In placement mode, route drag gestures to
   the artwork, strings, and invisible body/neck move surface; in performance
   mode, restore the original per-string recognizer. Convert Compose drag pixels
@@ -103,15 +105,16 @@ pico-cli app launch com.haisnap.spatialguitar --activity .platform.LaunchActivit
 
 Run on a physical PICO OS 6 device for final Poke and audio-latency tuning.
 
-Latest host verification: 56 `testDebugUnitTest` tests, `lintDebug`,
+Latest host verification: 59 `testDebugUnitTest` tests, `lintDebug`,
 `assembleDebug`, and the SpatialUI design-style verifier pass. The 48 CC0 WAV
 assets are stored uncompressed in the APK. Final-build install/launch succeeds
-on `emulator-5554`; both timbres decode without errors in about 5.2 seconds on
-that emulator, the app process remains alive, and its fresh crash buffer is
-empty. The latest unobstructed guided-panel reference is
-`artifacts/guided-sing-along-settled.png`; later capture attempts were obscured
-by the emulator's system launcher/another app's stale ANR, not by a guitar-app
-failure. No sample-decoding or lint error was observed. Lint still reports
+on `emulator-5554`; runtime logging confirms the accompaniment safety zone is
+`0.5764 x 0.4454 x 0.2096 m` with `0.1441 m` of forward reach. Both timbres
+decode all 48 samples without errors, the app process remains alive, and its
+fresh crash buffer is empty. The matching capture is
+`artifacts/large-strum-safety-zone.png`; the emulator compositor also retained
+another app's stale spatial window, which is unrelated to this app. No
+sample-decoding or lint error was observed. Lint still reports
 pre-existing SDK/dependency-version and unused-resource warnings. Shared-resource target
 creation takes about 176 ms on that emulator, down from about 3.6 seconds. The
 CLI cannot automate volumetric controller/Poke dragging or string strikes, so

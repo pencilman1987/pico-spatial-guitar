@@ -29,8 +29,10 @@ instrument handles voicing and detailed string selection.
 
 - Default mode: `ACCOMPANIMENT`.
 - Harmony: seven one-touch presets — C, G, Am, F, Em, Dm, E.
-- Rhythm input: one broad local `0.25 x 0.19 x 0.03 m` collider around the
-  sound hole, enlarged further by the guitar root scale.
+- Rhythm input: one body-sized local `0.44 x 0.34 x 0.16 m` safety volume
+  around the sound hole (about `0.58 x 0.45 x 0.21 m` after root scale and
+  reaching about `0.14 m` in front of the guitar). Users sweep through the
+  middle of the body instead of aiming at the six thin visual strings.
 - Accessibility: first contact and deliberate re-entry always sound without a
   speed requirement; slow `0.055 m/s` strokes, direction reversals, and a
   sustained sweep can retrigger.
@@ -41,7 +43,5 @@ instrument handles voicing and detailed string selection.
 
 ## Deferred until physical-device validation
 
-- Song chord timeline and lyrics.
-- Transpose/capo controls.
 - Metronome, drum loop, and style presets.
-- Performance mode that advances the correct song chord from rhythm alone.
+- Physical-headset tuning of the safety volume, gesture curve, and latency.
